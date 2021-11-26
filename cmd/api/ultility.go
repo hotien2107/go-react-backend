@@ -11,7 +11,7 @@ func (app *application) writeJSON(w http.ResponseWriter, status int, data interf
 	wrapper[wrap] = data
 
 	js, err := json.Marshal(wrapper)
-	
+
 	if err != nil {
 		return err
 	}
@@ -21,4 +21,16 @@ func (app *application) writeJSON(w http.ResponseWriter, status int, data interf
 	w.Write(js)
 
 	return nil
+}
+
+func (app *application) errorJSON(w http.ResponseWriter, err error) {
+	type errorJson struct {
+		Message string `json:"error"`
+	}
+
+	theError := errorJson{
+		Message: err.Error(),
+	}
+
+	app.writeJSON(w, http.StatusBadRequest, theError, "error")
 }
