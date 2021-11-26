@@ -10,7 +10,7 @@ type DBModels struct {
 	DB *sql.DB
 }
 
-// Get a movie and error
+// Get a movie and error, if any
 func (m *DBModels) Get(id int) (*Movie, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 
@@ -42,10 +42,105 @@ func (m *DBModels) Get(id int) (*Movie, error) {
 		return nil, err
 	}
 
+	query = `select mg.id, mg.movie_id, mg.genre_id, g.genre_name
+			from
+				movies_genres mg left join genres g
+				on (g.id = mg.genre_id)
+			where
+				mg.movie_id = $1
+	`
+
+	rows, _ := m.DB.QueryContext(ctx, query, id)
+	defer rows.Close()
+
+	genres := make(map[int]string)
+	for rows.Next() {
+		var mg MovieGenre
+		err := rows.Scan(
+			&mg.ID,
+			&mg.MovieID,
+			&mg.GenreID,
+			&mg.Genre.GenreName,
+		)
+		if err != nil {
+			return nil, err
+		}
+		genres[mg.ID] = mg.Genre.GenreName
+	}
+
+	movie.MovieGenre = genres
+
 	return &movie, nil
 }
 
 // Get all movies and error
-func (m *DBModels) All(id int) ([]*Movie, error) {
-	return nil, nil
+func (m *DBModels) All() ([]*Movie, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+
+	defer cancel()
+
+	query := `select * from movies order by title`
+
+	rows, err := m.DB.QueryContext(ctx, query)
+
+	if err != nil {
+		return nil, err
+	}
+
+	var movies []*Movie
+
+	for rows.Next() {
+		var movie Movie
+		err := rows.Scan(
+			&movie.ID,
+			&movie.Title,
+			&movie.Description,
+			&movie.Year,
+			&movie.ReleaseDate,
+			&movie.Runtime,
+			&movie.Rating,
+			&movie.MPAARating,
+			&movie.CreateAt,
+			&movie.UpdatedAt,
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		query = `select mg.id, mg.movie_id, mg.genre_id, g.genre_name
+			from
+				movies_genres mg left join genres g
+				on (g.id = mg.genre_id)
+			where
+				mg.movie_id = $1
+`
+
+		each_rows, err := m.DB.QueryContext(ctx, query, movie.ID)
+
+		if err != nil {
+			return nil, err
+		}
+
+		genres := make(map[int]string)
+		for each_rows.Next() {
+			var mg MovieGenre
+			err := each_rows.Scan(
+				&mg.ID,
+				&mg.MovieID,
+				&mg.GenreID,
+				&mg.Genre.GenreName,
+			)
+			if err != nil {
+				return nil, err
+			}
+			genres[mg.ID] = mg.Genre.GenreName
+		}
+		each_rows.Close()
+
+		movie.MovieGenre = genres
+		movies = append(movies, &movie)
+	}
+
+	return movies, nil
 }
