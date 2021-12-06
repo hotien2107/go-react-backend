@@ -3,6 +3,7 @@ package models
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"time"
 )
 
@@ -74,12 +75,17 @@ func (m *DBModels) Get(id int) (*Movie, error) {
 }
 
 // Get all movies and error
-func (m *DBModels) All() ([]*Movie, error) {
+func (m *DBModels) All(genres ...int) ([]*Movie, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 
 	defer cancel()
 
-	query := `select * from movies order by title`
+	where := ""
+	if len(genres) > 0 {
+		where = fmt.Sprintf("where id in (select movie_id from movies_genres where genre_id = %d)", genres[0])
+	}
+
+	query := fmt.Sprintf(`select * from movies %s order by title`, where)
 
 	rows, err := m.DB.QueryContext(ctx, query)
 
